@@ -23,11 +23,11 @@ export function useReviewItems(editor: Editor | null): ReviewState {
     let revision = -1;
     let items: readonly ReviewItemPlacement[] = [];
     let activeKey: string | null = null;
-    const read = () => {
+    const read = (force = false) => {
       const nextRevision = editor.getReviewRevision();
       const nextActive = editor.getActivatedReviewItemKey();
-      if (nextRevision === revision && nextActive === activeKey) return;
-      if (nextRevision !== revision) {
+      if (!force && nextRevision === revision && nextActive === activeKey) return;
+      if (force || nextRevision !== revision) {
         revision = nextRevision;
         items = editor.getReviewItems({ placement: false });
       }
@@ -35,9 +35,9 @@ export function useReviewItems(editor: Editor | null): ReviewState {
       setState({ items, activeKey });
     };
     read();
-    const offChange = editor.on('change', read);
+    // Some comment commands emit change before the review revision counter advances.\n    // Force a queue refresh on document changes so new comments appear immediately.\n    const offChange = editor.on('change', () => read(true));
     const offSelection = editor.on('selectionChange', read);
-    const offResolved = editor.on('reviewChangesResolved', read);
+    const offResolved = editor.on('reviewChangesResolved', () => read(true));
     return () => {
       offChange();
       offSelection();
