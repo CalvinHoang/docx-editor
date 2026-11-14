@@ -22,10 +22,14 @@ export function useCurrentRevision(editor: Editor | null): string | null {
       setKey(current?.key ?? null);
     };
     read();
-    const offChange = editor.on('change', read);
-    const offSelection = editor.on('selectionChange', read);
-    const offResolved = editor.on('reviewChangesResolved', read);
+    // Not during the engine's own render: see useReviewItems.
+    let live = true;
+    const later = () => queueMicrotask(() => live && read());
+    const offChange = editor.on('change', later);
+    const offSelection = editor.on('selectionChange', later);
+    const offResolved = editor.on('reviewChangesResolved', later);
     return () => {
+      live = false;
       offChange();
       offSelection();
       offResolved();

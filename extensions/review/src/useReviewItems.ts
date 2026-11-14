@@ -35,10 +35,16 @@ export function useReviewItems(editor: Editor | null): ReviewState {
       setState({ items, activeKey });
     };
     read();
-    const offChange = editor.on('change', read);
-    const offSelection = editor.on('selectionChange', read);
-    const offResolved = editor.on('reviewChangesResolved', read);
+    // The engine can emit while React is rendering one of its own components; updating this
+    // component's state then is an error ("Cannot update a component while rendering a
+    // different component"). Read after the current task instead.
+    let live = true;
+    const later = () => queueMicrotask(() => live && read());
+    const offChange = editor.on('change', later);
+    const offSelection = editor.on('selectionChange', later);
+    const offResolved = editor.on('reviewChangesResolved', later);
     return () => {
+      live = false;
       offChange();
       offSelection();
       offResolved();
