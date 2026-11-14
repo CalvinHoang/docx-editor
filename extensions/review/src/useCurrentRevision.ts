@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Editor } from '@docx-editor.dev/core/contracts/editor';
+import { watchReview } from './watch-review';
 
 /**
  * The key of the tracked change the caret is in, as Word's Accept and Reject act on: the
@@ -13,7 +14,14 @@ export function useCurrentRevision(editor: Editor | null): string | null {
       setKey(null);
       return undefined;
     }
+    let seen = '';
     const read = () => {
+      // Recompute only when the queue or the caret moved (the poll would otherwise re-derive
+      // the whole queue every tick). The counter covers the queue and the activated item; the
+      // caret can move within a line without moving it, so the selection is part of the key.
+      const state = `${editor.getReviewRevision()}|${JSON.stringify(editor.snapshot().selection)}`;
+      if (state === seen) return;
+      seen = state;
       const items = editor.getReviewItems({ placement: false });
       const activated = editor.getActivatedReviewItemKey();
       const current =
@@ -22,18 +30,7 @@ export function useCurrentRevision(editor: Editor | null): string | null {
       setKey(current?.key ?? null);
     };
     read();
-    // Not during the engine's own render: see useReviewItems.
-    let live = true;
-    const later = () => queueMicrotask(() => live && read());
-    const offChange = editor.on('change', later);
-    const offSelection = editor.on('selectionChange', later);
-    const offResolved = editor.on('reviewChangesResolved', later);
-    return () => {
-      live = false;
-      offChange();
-      offSelection();
-      offResolved();
-    };
+    return watchReview(editor, read);
   }, [editor]);
   return key;
 }
